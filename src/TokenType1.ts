@@ -8,6 +8,7 @@ import {
   ICreateConfig,
   IMintConfig,
   ISendConfig,
+  IBurnConfig,
   IBurnAllConfig
 } from "./interfaces/SLPInterfaces"
 
@@ -21,17 +22,10 @@ class TokenType1 {
     this.restURL = restURL
   }
 
-  async create(createConfig: ICreateConfig) {
+  async create(createConfig: ICreateConfig): Promise<Object> {
     let tmpBITBOX: any = this.returnBITBOXInstance(createConfig.fundingAddress)
 
-    const getRawTransactions = async (txids: any) => {
-      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
-    }
-
-    const slpValidator: any = new slpjs.LocalValidator(
-      tmpBITBOX,
-      getRawTransactions
-    )
+    const slpValidator = this.returnLocalValidator(tmpBITBOX)
     const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
     const fundingAddress: string = addy.toSLPAddress(
       createConfig.fundingAddress
@@ -85,17 +79,10 @@ class TokenType1 {
     return genesisTxid[0]
   }
 
-  async mint(mintConfig: IMintConfig) {
+  async mint(mintConfig: IMintConfig): Promise<Object> {
     let tmpBITBOX: any = this.returnBITBOXInstance(mintConfig.fundingAddress)
 
-    const getRawTransactions = async (txids: any) => {
-      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
-    }
-
-    const slpValidator: any = new slpjs.LocalValidator(
-      tmpBITBOX,
-      getRawTransactions
-    )
+    const slpValidator = this.returnLocalValidator(tmpBITBOX)
     const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
     const fundingAddress: string = addy.toSLPAddress(mintConfig.fundingAddress)
     const fundingWif: string = mintConfig.fundingWif
@@ -143,17 +130,10 @@ class TokenType1 {
     return mintTxid[0]
   }
 
-  async send(sendConfig: ISendConfig) {
+  async send(sendConfig: ISendConfig): Promise<Object> {
     let tmpBITBOX: any = this.returnBITBOXInstance(sendConfig.fundingAddress)
 
-    const getRawTransactions = async (txids: any) => {
-      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
-    }
-
-    const slpValidator: any = new slpjs.LocalValidator(
-      tmpBITBOX,
-      getRawTransactions
-    )
+    const slpValidator = this.returnLocalValidator(tmpBITBOX)
     const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
 
     const fundingAddress: string = addy.toSLPAddress(sendConfig.fundingAddress)
@@ -196,25 +176,14 @@ class TokenType1 {
     return sendTxid[0]
   }
 
-  async burnAll(burnAllConfig: IBurnAllConfig) {
+  async burnAll(burnAllConfig: IBurnAllConfig): Promise<Object> {
     try {
       let tmpBITBOX: any = this.returnBITBOXInstance(
         burnAllConfig.fundingAddress
       )
 
-      const getRawTransactions = async (txids: any) => {
-        return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
-      }
-
-      const slpValidator: any = new slpjs.LocalValidator(
-        tmpBITBOX,
-        getRawTransactions
-      )
+      const slpValidator = this.returnLocalValidator(tmpBITBOX)
       const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
-      const tokenInfo = await bitboxNetwork.getTokenInformation(
-        burnAllConfig.tokenId
-      )
-      let tokenDecimals = tokenInfo.decimals
 
       let balances = await bitboxNetwork.getAllSlpBalancesAndUtxos(
         burnAllConfig.fundingAddress
@@ -278,6 +247,110 @@ class TokenType1 {
     }
   }
 
+  async burn(burnConfig: IBurnConfig): Promise<Object> {
+    try {
+      let tmpBITBOX: any = this.returnBITBOXInstance(burnConfig.fundingAddress)
+
+      const slpValidator = this.returnLocalValidator(tmpBITBOX)
+      const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+
+      // step 1 create new address
+      let mnemonic: string = tmpBITBOX.Mnemonic.generate(128)
+      let rootSeed: any = tmpBITBOX.Mnemonic.toSeed(mnemonic)
+      let network: string = this.returnNetwork(burnConfig.fundingAddress)
+      let masterHDNode: any
+      if (network === "mainnet") {
+        masterHDNode = tmpBITBOX.HDNode.fromSeed(rootSeed, "mainnet")
+      } else {
+        masterHDNode = tmpBITBOX.HDNode.fromSeed(rootSeed, "testnet")
+      }
+      let account = tmpBITBOX.HDNode.derivePath(masterHDNode, "m/44'/145'/0'")
+      let change = tmpBITBOX.HDNode.derivePath(account, "0/0")
+      let cashAddress = tmpBITBOX.HDNode.toCashAddress(change)
+      let wif = tmpBITBOX.HDNode.toWIF(change)
+
+      // step 2 send tokens to be burned to that address
+      let sendConfig: ISendConfig = {
+        fundingAddress: burnConfig.fundingAddress,
+        fundingWif: burnConfig.fundingWif,
+        tokenReceiverAddress: cashAddress,
+        bchChangeReceiverAddress: burnConfig.fundingAddress,
+        tokenId: burnConfig.tokenId,
+        amount: burnConfig.amount
+      }
+
+      let successTxid = await this.send(sendConfig)
+      console.log("SEND SUCCESS Txid", successTxid)
+
+      // step 3 fund burner address
+      let transactionBuilder: any
+      if (network === "mainnet") {
+        transactionBuilder = new tmpBITBOX.TransactionBuilder("mainnet")
+      } else {
+        transactionBuilder = new tmpBITBOX.TransactionBuilder("testnet")
+      }
+
+      let originalAmount: number = 0
+      let balances = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+        burnConfig.fundingAddress
+      )
+
+      let inputUtxos: any = balances.nonSlpUtxos
+      inputUtxos.forEach((utxo: any) => {
+        // index of vout
+        let vout: string = utxo.vout
+
+        // txid of vout
+        let txid: string = utxo.txid
+
+        // add input with txid and index of vout
+        transactionBuilder.addInput(txid, vout)
+
+        originalAmount += utxo.satoshis
+      })
+
+      let byteCount = tmpBITBOX.BitcoinCash.getByteCount(
+        { P2PKH: inputUtxos.length },
+        { P2PKH: 1 }
+      )
+      let sendAmount = originalAmount - byteCount
+
+      transactionBuilder.addOutput(cashAddress, sendAmount)
+
+      let keyPair = tmpBITBOX.ECPair.fromWIF(burnConfig.fundingWif)
+
+      let redeemScript: void
+      inputUtxos.forEach((utxo: any, index: number) => {
+        transactionBuilder.sign(
+          index,
+          keyPair,
+          redeemScript,
+          transactionBuilder.hashTypes.SIGHASH_ALL,
+          utxo.satoshis
+        )
+      })
+
+      let tx = transactionBuilder.build()
+      let hex = tx.toHex()
+      let txid = await tmpBITBOX.RawTransactions.sendRawTransaction(hex)
+      console.log("SEND TXID: ", txid)
+
+      // step 4 burn tokens and send change back to original address
+      let burnAllConfig: IBurnAllConfig = {
+        fundingAddress: cashAddress,
+        fundingWif: wif,
+        bchChangeReceiverAddress: burnConfig.fundingAddress,
+        tokenId: burnConfig.tokenId
+      }
+
+      let burnAllTxid: any = await this.burnAll(burnAllConfig)
+      console.log("BURNALLTXID", burnAllTxid)
+      return burnAllTxid
+    } catch (error) {
+      return error
+    }
+  }
+
   returnNetwork(address: string): string {
     return addy.detectAddressNetwork(address)
   }
@@ -293,6 +366,14 @@ class TokenType1 {
     }
 
     return tmpBITBOX
+  }
+
+  returnLocalValidator(tmpBITBOX: any): any {
+    const getRawTransactions = async (txids: any) => {
+      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+    }
+
+    return new slpjs.LocalValidator(tmpBITBOX, getRawTransactions)
   }
 }
 

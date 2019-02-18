@@ -41,3 +41,11 @@ export interface IBurnAllConfig {
   tokenId: string
   bchChangeReceiverAddress: string
 }
+
+export interface IBurnConfig {
+  fundingAddress: string
+  fundingWif: string
+  tokenId: string
+  amount: number
+  bchChangeReceiverAddress: string
+}
