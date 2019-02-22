@@ -294,6 +294,70 @@ class TokenType1 {
 
     return tmpBITBOX
   }
+
+  async createP2MS(createConfig: ICreateConfig) {
+    let tmpBITBOX: any = this.returnBITBOXInstance(createConfig.fundingAddress)
+
+    const getRawTransactions = async (txids: any) => {
+      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+    }
+
+    const slpValidator: any = new slpjs.LocalValidator(
+      tmpBITBOX,
+      getRawTransactions
+    )
+    const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+    const fundingAddress: string = addy.toSLPAddress(
+      createConfig.fundingAddress
+    )
+    const fundingWif: string = createConfig.fundingWif
+    const tokenReceiverAddress: string = addy.toSLPAddress(
+      createConfig.tokenReceiverAddress
+    )
+    let batonReceiverAddress: string
+    if (
+      createConfig.batonReceiverAddress !== undefined &&
+      createConfig.batonReceiverAddress !== "" &&
+      createConfig.batonReceiverAddress !== null
+    ) {
+      batonReceiverAddress = addy.toSLPAddress(
+        createConfig.batonReceiverAddress
+      )
+    } else {
+      batonReceiverAddress = null
+    }
+
+    const bchChangeReceiverAddress: string = addy.toSLPAddress(
+      createConfig.bchChangeReceiverAddress
+    )
+    const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+      fundingAddress
+    )
+
+    const decimals: number = createConfig.decimals
+    const name: string = createConfig.name
+    const symbol: string = createConfig.symbol
+    const documentUri: string = createConfig.documentUri
+    const documentHash: any = createConfig.documentHash
+
+    let initialTokenQty: number = createConfig.initialTokenQty
+
+    initialTokenQty = new BigNumber(initialTokenQty).times(10 ** decimals)
+    balances.nonSlpUtxos.forEach((txo: any) => (txo.wif = fundingWif))
+    const genesisTxid = await bitboxNetwork.p2msTokenGenesis(
+      name,
+      symbol,
+      initialTokenQty,
+      documentUri,
+      documentHash,
+      decimals,
+      tokenReceiverAddress,
+      batonReceiverAddress,
+      bchChangeReceiverAddress,
+      balances.nonSlpUtxos
+    )
+    return genesisTxid[0]
+  }
 }
 
 export default TokenType1
