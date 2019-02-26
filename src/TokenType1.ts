@@ -8,7 +8,8 @@ import {
   ICreateConfig,
   IMintConfig,
   ISendConfig,
-  IBurnAllConfig
+  IBurnAllConfig,
+  IBurnConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -82,7 +83,7 @@ class TokenType1 {
       bchChangeReceiverAddress,
       balances.nonSlpUtxos
     )
-    return genesisTxid[0]
+    return genesisTxid
   }
 
   async mint(mintConfig: IMintConfig) {
@@ -140,7 +141,7 @@ class TokenType1 {
       batonReceiverAddress,
       bchChangeReceiverAddress
     )
-    return mintTxid[0]
+    return mintTxid
   }
 
   async send(sendConfig: ISendConfig) {
@@ -193,7 +194,7 @@ class TokenType1 {
       tokenReceiverAddress,
       bchChangeReceiverAddress
     )
-    return sendTxid[0]
+    return sendTxid
   }
 
   async burnAll(burnAllConfig: IBurnAllConfig) {
@@ -272,7 +273,51 @@ class TokenType1 {
       let tx = transactionBuilder.build()
       let hex = tx.toHex()
       let txid = await tmpBITBOX.RawTransactions.sendRawTransaction(hex)
-      return txid[0]
+      return txid
+    } catch (error) {
+      return error
+    }
+  }
+
+  async burn(burnConfig: IBurnConfig) {
+    try {
+      let tmpBITBOX: any = this.returnBITBOXInstance(burnConfig.fundingAddress)
+
+      const getRawTransactions = async (txids: any) => {
+        return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+      }
+
+      const slpValidator: any = new slpjs.LocalValidator(
+        tmpBITBOX,
+        getRawTransactions
+      )
+      const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+      const fundingAddress: string = addy.toSLPAddress(
+        burnConfig.fundingAddress
+      )
+      const bchChangeReceiverAddress: string = addy.toSLPAddress(
+        burnConfig.bchChangeReceiverAddress
+      )
+      const tokenInfo = await bitboxNetwork.getTokenInformation(
+        burnConfig.tokenId
+      )
+      const tokenDecimals = tokenInfo.decimals
+      const balances = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+        fundingAddress
+      )
+      let amount = new BigNumber(burnConfig.amount).times(10 ** tokenDecimals)
+      let inputUtxos = balances.slpTokenUtxos[burnConfig.tokenId]
+
+      inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+      inputUtxos.forEach((txo: any) => (txo.wif = burnConfig.fundingWif))
+      const burnTxid = await bitboxNetwork.simpleTokenBurn(
+        burnConfig.tokenId,
+        amount,
+        inputUtxos,
+        bchChangeReceiverAddress
+      )
+      return burnTxid
     } catch (error) {
       return error
     }
