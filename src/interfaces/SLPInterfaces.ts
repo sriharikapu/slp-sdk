@@ -49,3 +49,33 @@ export interface IBurnConfig {
   bchChangeReceiverAddress: string
   amount: number
 }
+
+export interface ICreateP2MSConfig {
+  fundingAddress: string
+  fundingWif: string
+  tokenReceiverAddresses: string[]
+  tokenReceiverWifs: string[]
+  batonReceiverAddresses: string[]
+  batonReceiverWifs: string[]
+  bchChangeReceiverAddresses: string[]
+  bchChangeReceiverWifs: string[]
+  decimals: number
+  name: string
+  symbol: string
+  documentUri: string
+  documentHash: any
+  initialTokenQty: number
+  requiredSignatures: number
+}
+
+export interface IMintP2MSConfig {
+  fundingWifs: string[]
+  tokenReceiverAddresses: string[]
+  tokenReceiverWifs: string[]
+  batonReceiverAddresses: string[]
+  batonReceiverWifs: string[]
+  bchChangeReceiverAddresses: string[]
+  bchChangeReceiverWifs: string[]
+  tokenId: string
+  additionalTokenQty: number
+}
