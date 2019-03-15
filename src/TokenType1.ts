@@ -20,6 +20,7 @@ let addy: any = new Address()
 
 class TokenType1 {
   restURL: string
+  BITBOX: any
   constructor(restURL?: string) {
     this.restURL = restURL
     this.BITBOX = new BITBOXSDK()
@@ -393,10 +394,11 @@ class TokenType1 {
   }
 
   async mintP2MS(mintP2MSConfig: IMintP2MSConfig) {
-    let BITBOX = new BITBOXSDK()
-    let tmpECPair = BITBOX.ECPair.fromWIF(mintP2MSConfig.tokenReceiverWifs[0])
-    let cashAddress = BITBOX.ECPair.toCashAddress(tmpECPair)
-    let tmpBITBOX: any = this.returnBITBOXInstance(cashAddress)
+    const fundingWif: string = mintP2MSConfig.fundingWif
+    let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(
+      this.BITBOX.ECPair.fromWIF(fundingWif)
+    )
+    let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
 
     const getRawTransactions = async (txids: any) => {
       return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
@@ -406,45 +408,16 @@ class TokenType1 {
       tmpBITBOX,
       getRawTransactions
     )
+
     const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+    fundingAddress = addy.toSLPAddress(fundingAddress)
 
-    let mintPubkeys: any[] = []
-    mintP2MSConfig.tokenReceiverWifs.forEach((wif: string) => {
-      const ecpair = tmpBITBOX.ECPair.fromWIF(wif)
-      console.log(tmpBITBOX.ECPair.toCashAddress(ecpair))
-      mintPubkeys.push(tmpBITBOX.ECPair.toPublicKey(ecpair))
-    })
-    console.log("mintPubkeys", mintPubkeys)
-
-    const mintBuf = tmpBITBOX.Script.multisig.output.encode(
-      mintP2MSConfig.requiredSignatures,
-      mintPubkeys
-    )
-
-    const scriptHash = tmpBITBOX.Crypto.hash160(mintBuf)
-    console.log("scriptHash", scriptHash)
-    const data2 = tmpBITBOX.Script.scriptHash.output.encode(scriptHash)
-    console.log("DATTTA", data2)
-
-    return false
-    const fundingAddress: string = addy.toSLPAddress(mintConfig.fundingAddress)
-    const fundingWif: string = mintConfig.fundingWif
-    const tokenReceiverAddress: string = addy.toSLPAddress(
-      mintConfig.tokenReceiverAddress
-    )
-    const batonReceiverAddress: string = addy.toSLPAddress(
-      mintConfig.batonReceiverAddress
-    )
-    const bchChangeReceiverAddress: string = addy.toSLPAddress(
-      mintConfig.bchChangeReceiverAddress
-    )
-    const tokenId: string = mintConfig.tokenId
-    let additionalTokenQty: number = mintConfig.additionalTokenQty
-    let balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+    const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
       fundingAddress
     )
-    if (!balances.slpBatonUtxos[tokenId])
-      throw Error("You don't have the minting baton for this token")
+    // return false
+    const tokenId: string = mintP2MSConfig.tokenId
+    let additionalTokenQty: number = mintP2MSConfig.additionalTokenQty
 
     const tokenInfo: any = await bitboxNetwork.getTokenInformation(tokenId)
     let tokenDecimals: number = tokenInfo.decimals
@@ -454,7 +427,15 @@ class TokenType1 {
 
     // 4) Filter the list to choose ONLY the baton of interest
     // NOTE: (spending other batons for other tokens will result in losing ability to mint those tokens)
-    let inputUtxos = balances.slpBatonUtxos[tokenId]
+    let inputUtxos = [
+      {
+        txid:
+          "05f8b4da2fc91b10fbfd9731971ed8d5dfb17edae700aa413b6f8caefb88c653",
+        vout: 2,
+        amount: 0.00000546,
+        satoshis: 546
+      }
+    ]
 
     // 5) Simply sweep our BCH (non-SLP) utxos to fuel the transaction
     inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
@@ -462,13 +443,15 @@ class TokenType1 {
     // 6) Set the proper private key for each Utxo
     inputUtxos.forEach((txo: any) => (txo.wif = fundingWif))
 
-    let mintTxid = await bitboxNetwork.simpleTokenMint(
+    let mintTxid = await bitboxNetwork.p2msTokenMint(
       tokenId,
       mintQty,
       inputUtxos,
-      tokenReceiverAddress,
-      batonReceiverAddress,
-      bchChangeReceiverAddress
+      fundingWif,
+      mintP2MSConfig.tokenReceiverWifs,
+      mintP2MSConfig.batonReceiverWifs,
+      mintP2MSConfig.bchChangeReceiverWifs,
+      mintP2MSConfig.requiredSignatures
     )
     return mintTxid
   }

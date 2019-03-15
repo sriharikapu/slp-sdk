@@ -65,13 +65,11 @@ export interface ICreateP2MSConfig {
 }
 
 export interface IMintP2MSConfig {
-  fundingWifs: string[]
-  tokenReceiverAddresses: string[]
+  fundingWif: string
   tokenReceiverWifs: string[]
-  batonReceiverAddresses: string[]
   batonReceiverWifs: string[]
-  bchChangeReceiverAddresses: string[]
   bchChangeReceiverWifs: string[]
   tokenId: string
   additionalTokenQty: number
+  requiredSignatures: number
 }
