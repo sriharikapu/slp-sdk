@@ -73,3 +73,12 @@ export interface IMintP2MSConfig {
   additionalTokenQty: number
   requiredSignatures: number
 }
+
+export interface ISendP2MSConfig {
+  fundingWif: string
+  tokenReceiverWifs: string[]
+  bchChangeReceiverWifs: string[]
+  tokenId: string
+  sendAmount: number
+  requiredSignatures: number
+}

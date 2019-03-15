@@ -11,7 +11,8 @@ import {
   IBurnAllConfig,
   IBurnConfig,
   ICreateP2MSConfig,
-  IMintP2MSConfig
+  IMintP2MSConfig,
+  ISendP2MSConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -454,6 +455,98 @@ class TokenType1 {
       mintP2MSConfig.requiredSignatures
     )
     return mintTxid
+  }
+
+  async sendP2MS(sendP2MSConfig: ISendP2MSConfig) {
+    const fundingWif: string = sendP2MSConfig.fundingWif
+    let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(
+      this.BITBOX.ECPair.fromWIF(fundingWif)
+    )
+    let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+    const getRawTransactions = async (txids: any) => {
+      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+    }
+
+    const slpValidator: any = new slpjs.LocalValidator(
+      tmpBITBOX,
+      getRawTransactions
+    )
+
+    const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+    fundingAddress = addy.toSLPAddress(fundingAddress)
+
+    const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+      fundingAddress
+    )
+    const tokenId: string = sendP2MSConfig.tokenId
+    let sendAmount: number = sendP2MSConfig.sendAmount
+
+    const tokenInfo: any = await bitboxNetwork.getTokenInformation(tokenId)
+    let tokenDecimals: number = tokenInfo.decimals
+
+    // 3) Calculate send amount in "Token Satoshis".  In this example we want to just send 1 token unit to someone...
+    sendAmount = new BigNumber(sendAmount).times(10 ** tokenDecimals) // Don't forget to account for token precision
+
+    // 4) Get all of our token's UTXOs
+    let inputUtxos = [
+      {
+        txid:
+          "8e6005dd46b44356668287dfaab32285c7f36f8d8214af6439e1df3d6d54f2a8",
+        vout: 1,
+        amount: 0.00000546,
+        satoshis: 546
+      }
+    ]
+
+    // 5) Simply sweep our BCH utxos to fuel the transaction
+    inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+    // 6) Set the proper private key for each Utxo
+    inputUtxos.forEach((txo: any) => (txo.wif = fundingWif))
+
+    let sendTxid = await bitboxNetwork.p2msTokenSend(
+      sendP2MSConfig.fundingWif,
+      tokenId,
+      sendAmount,
+      inputUtxos,
+      sendP2MSConfig.tokenReceiverWifs,
+      sendP2MSConfig.bchChangeReceiverWifs,
+      sendP2MSConfig.requiredSignatures
+    )
+    return sendTxid
+
+    // 3) Multiply the specified token quantity by 10^(token decimal precision)
+    // let mintQty = new BigNumber(sendAmount).times(10 ** tokenDecimals)
+    //
+    // // 4) Filter the list to choose ONLY the baton of interest
+    // // NOTE: (spending other batons for other tokens will result in losing ability to mint those tokens)
+    // let inputUtxos = [
+    //   {
+    //     txid:
+    //       "f0dcdcf8642a7bfedac0d93f19d1fb0b4933b35da9bf315d1cfd46fb9cc45679",
+    //     vout: 2,
+    //     amount: 0.00000546,
+    //     satoshis: 546
+    //   }
+    // ]
+    //
+    // // 5) Simply sweep our BCH (non-SLP) utxos to fuel the transaction
+    // inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+    //
+    // // 6) Set the proper private key for each Utxo
+    // inputUtxos.forEach((txo: any) => (txo.wif = fundingWif))
+    //
+    // let mintTxid = await bitboxNetwork.p2msTokenSend(
+    //   tokenId,
+    //   sendAmount,
+    //   inputUtxos,
+    //   fundingWif,
+    //   mintP2MSConfig.tokenReceiverWifs,
+    //   mintP2MSConfig.bchChangeReceiverWifs,
+    //   mintP2MSConfig.requiredSignatures
+    // )
+    // return mintTxid
   }
 }
 
