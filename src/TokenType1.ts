@@ -22,6 +22,7 @@ class TokenType1 {
   restURL: string
   constructor(restURL?: string) {
     this.restURL = restURL
+    this.BITBOX = new BITBOXSDK()
   }
 
   async create(createConfig: ICreateConfig) {
@@ -343,9 +344,11 @@ class TokenType1 {
   }
 
   async createP2MS(createP2MSConfig: ICreateP2MSConfig) {
-    let tmpBITBOX: any = this.returnBITBOXInstance(
-      createP2MSConfig.fundingAddress
+    const fundingWif: string = createP2MSConfig.fundingWif
+    let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(
+      this.BITBOX.ECPair.fromWIF(fundingWif)
     )
+    let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
 
     const getRawTransactions = async (txids: any) => {
       return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
@@ -357,36 +360,7 @@ class TokenType1 {
     )
 
     const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
-    const fundingAddress: string = addy.toSLPAddress(
-      createP2MSConfig.fundingAddress
-    )
-    const fundingWif: string = createP2MSConfig.fundingWif
-    const tokenReceiverAddresses: string[] = createP2MSConfig.tokenReceiverAddresses.map(
-      (address: string) => {
-        return addy.toSLPAddress(address)
-      }
-    )
-
-    let batonReceiverAddresses: string[]
-    if (
-      createP2MSConfig.batonReceiverAddresses[0] !== undefined &&
-      createP2MSConfig.batonReceiverAddresses[0] !== "" &&
-      createP2MSConfig.batonReceiverAddresses[0] !== null
-    ) {
-      batonReceiverAddresses = createP2MSConfig.batonReceiverAddresses.map(
-        (address: string) => {
-          return addy.toSLPAddress(address)
-        }
-      )
-    } else {
-      batonReceiverAddresses = null
-    }
-
-    const bchChangeReceiverAddresses: string[] = createP2MSConfig.bchChangeReceiverAddresses.map(
-      (address: string) => {
-        return addy.toSLPAddress(address)
-      }
-    )
+    fundingAddress = addy.toSLPAddress(fundingAddress)
 
     const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
       fundingAddress
@@ -409,11 +383,8 @@ class TokenType1 {
       documentUri,
       documentHash,
       decimals,
-      tokenReceiverAddresses,
       createP2MSConfig.tokenReceiverWifs,
-      batonReceiverAddresses,
       createP2MSConfig.batonReceiverWifs,
-      bchChangeReceiverAddresses,
       createP2MSConfig.bchChangeReceiverWifs,
       balances.nonSlpUtxos,
       createP2MSConfig.requiredSignatures

@@ -51,13 +51,9 @@ export interface IBurnConfig {
 }
 
 export interface ICreateP2MSConfig {
-  fundingAddress: string
   fundingWif: string
-  tokenReceiverAddresses: string[]
   tokenReceiverWifs: string[]
-  batonReceiverAddresses: string[]
   batonReceiverWifs: string[]
-  bchChangeReceiverAddresses: string[]
   bchChangeReceiverWifs: string[]
   decimals: number
   name: string
