@@ -112,3 +112,12 @@ export interface ICreateP2PKConfig {
   documentHash: any
   initialTokenQty: number
 }
+
+export interface IMintP2PKConfig {
+  fundingWif: string
+  tokenReceiverWif: string
+  batonReceiverWif: string
+  bchChangeReceiverWif: string
+  tokenId: string
+  additionalTokenQty: number
+}

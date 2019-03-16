@@ -15,7 +15,8 @@ import {
   ISendP2MSConfig,
   IBurnAllP2MsConfig,
   IBurnP2MsConfig,
-  ICreateP2PKConfig
+  ICreateP2PKConfig,
+  IMintP2PKConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -825,8 +826,69 @@ class TokenType1 {
       createP2PKConfig.bchChangeReceiverWif,
       balances.nonSlpUtxos
     )
-    console.log("GENESISTXID", genesisTxid)
     return genesisTxid
+  }
+
+  async mintP2PK(mintP2PKConfig: IMintP2PKConfig) {
+    const fundingWif: string = mintP2PKConfig.fundingWif
+    let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(
+      this.BITBOX.ECPair.fromWIF(fundingWif)
+    )
+    let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+    const getRawTransactions = async (txids: any) => {
+      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+    }
+
+    const slpValidator: any = new slpjs.LocalValidator(
+      tmpBITBOX,
+      getRawTransactions
+    )
+
+    const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+    fundingAddress = addy.toSLPAddress(fundingAddress)
+
+    const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+      fundingAddress
+    )
+    // return false
+    const tokenId: string = mintP2PKConfig.tokenId
+    let additionalTokenQty: number = mintP2PKConfig.additionalTokenQty
+
+    const tokenInfo: any = await bitboxNetwork.getTokenInformation(tokenId)
+    let tokenDecimals: number = tokenInfo.decimals
+
+    // 3) Multiply the specified token quantity by 10^(token decimal precision)
+    let mintQty = new BigNumber(additionalTokenQty).times(10 ** tokenDecimals)
+
+    // 4) Filter the list to choose ONLY the baton of interest
+    // NOTE: (spending other batons for other tokens will result in losing ability to mint those tokens)
+    let inputUtxos = [
+      {
+        txid:
+          "fe3b9b75755cc616072e89660b72e5e158032ac7b627bbef3500be3dd2ea11f5",
+        vout: 2,
+        amount: 0.00000546,
+        satoshis: 546
+      }
+    ]
+
+    // 5) Simply sweep our BCH (non-SLP) utxos to fuel the transaction
+    inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+    // 6) Set the proper private key for each Utxo
+    inputUtxos.forEach((txo: any) => (txo.wif = fundingWif))
+
+    let mintTxid = await bitboxNetwork.p2pkTokenMint(
+      tokenId,
+      mintQty,
+      inputUtxos,
+      fundingWif,
+      mintP2PKConfig.tokenReceiverWif,
+      mintP2PKConfig.batonReceiverWif,
+      mintP2PKConfig.bchChangeReceiverWif
+    )
+    return mintTxid
   }
 }
 
