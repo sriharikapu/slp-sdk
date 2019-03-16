@@ -12,7 +12,8 @@ import {
   IBurnConfig,
   ICreateP2MSConfig,
   IMintP2MSConfig,
-  ISendP2MSConfig
+  ISendP2MSConfig,
+  IBurnAllP2MsConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -547,6 +548,122 @@ class TokenType1 {
     //   mintP2MSConfig.requiredSignatures
     // )
     // return mintTxid
+  }
+
+  async burnAllP2MS(burnAllP2MSConfig: IBurnAllP2MsConfig) {
+    try {
+      const fundingWif: string = burnAllP2MSConfig.fundingWif
+      let ecpair: any = this.BITBOX.ECPair.fromWIF(burnAllP2MSConfig.fundingWif)
+      let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(ecpair)
+      console.log(fundingAddress)
+      let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+      const getRawTransactions = async (txids: any) => {
+        return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+      }
+
+      const slpValidator: any = new slpjs.LocalValidator(
+        tmpBITBOX,
+        getRawTransactions
+      )
+      const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+      const tokenInfo = await bitboxNetwork.getTokenInformation(
+        burnAllP2MSConfig.tokenId
+      )
+      let tokenDecimals = tokenInfo.decimals
+
+      let balances = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+        fundingAddress
+      )
+
+      let bchChangeReceiverAddresses: string[] = burnAllP2MSConfig.bchChangeReceiverWifs.map(
+        wif => {
+          let ecpair = this.BITBOX.ECPair.fromWIF(wif)
+          let cashAddr = this.BITBOX.ECPair.toCashAddress(ecpair)
+          return addy.toSLPAddress(cashAddr)
+        }
+      )
+
+      bchChangeReceiverAddresses.forEach(outputAddress => {
+        if (!addy.isSLPAddress(outputAddress))
+          throw new Error("Change receiver address not in SLP format.")
+      })
+
+      let inputUtxos = [
+        {
+          txid:
+            "af16b2d0f76b3e19c7d6636b822cade8d2801f40eb87fa09dd6c853298ef1f19",
+          vout: 1,
+          amount: 0.00000546,
+          satoshis: 546
+        }
+      ]
+      inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+      inputUtxos.forEach((txo: any) => (txo.wif = burnAllP2MSConfig.fundingWif))
+      let network: string = this.returnNetwork(fundingAddress)
+      let transactionBuilder: any
+      if (network === "mainnet") {
+        transactionBuilder = new tmpBITBOX.TransactionBuilder("mainnet")
+      } else {
+        transactionBuilder = new tmpBITBOX.TransactionBuilder("testnet")
+      }
+
+      let originalAmount: number = 0
+
+      let mintPubkeys: any[] = []
+      burnAllP2MSConfig.bchChangeReceiverWifs.forEach((wif: string) => {
+        const ecpair = this.BITBOX.ECPair.fromWIF(wif)
+        mintPubkeys.push(this.BITBOX.ECPair.toPublicKey(ecpair))
+      })
+
+      const mintBuf = this.BITBOX.Script.multisig.output.encode(
+        burnAllP2MSConfig.requiredSignatures,
+        mintPubkeys
+      )
+
+      transactionBuilder.addInput(
+        inputUtxos[0].txid,
+        inputUtxos[0].vout,
+        transactionBuilder.DEFAULT_SEQUENCE,
+        mintBuf
+      )
+      originalAmount += inputUtxos[0].satoshis
+
+      transactionBuilder.addInput(inputUtxos[1].txid, inputUtxos[1].vout)
+      originalAmount += inputUtxos[1].satoshis
+
+      let byteCount = tmpBITBOX.BitcoinCash.getByteCount(
+        { P2PKH: inputUtxos.length },
+        { P2PKH: 3 }
+      )
+      let sendAmount = originalAmount - byteCount
+
+      transactionBuilder.addOutput(
+        addy.toCashAddress(bchChangeReceiverAddresses[0]),
+        sendAmount
+      )
+
+      let keyPair = tmpBITBOX.ECPair.fromWIF(burnAllP2MSConfig.fundingWif)
+
+      let redeemScript: void
+      inputUtxos.forEach((utxo: any, index: number) => {
+        transactionBuilder.sign(
+          index,
+          keyPair,
+          redeemScript,
+          transactionBuilder.hashTypes.SIGHASH_ALL,
+          utxo.satoshis
+        )
+      })
+
+      let tx = transactionBuilder.build()
+      let hex = tx.toHex()
+      let txid = await tmpBITBOX.RawTransactions.sendRawTransaction(hex)
+      return txid
+    } catch (error) {
+      return error
+    }
   }
 }
 
