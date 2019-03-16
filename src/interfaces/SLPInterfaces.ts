@@ -99,3 +99,16 @@ export interface IBurnP2MsConfig {
   bchChangeReceiverWifs: string[]
   requiredSignatures: number
 }
+
+export interface ICreateP2PKConfig {
+  fundingWif: string
+  tokenReceiverWif: string
+  batonReceiverWif: string
+  bchChangeReceiverWif: string
+  decimals: number
+  name: string
+  symbol: string
+  documentUri: string
+  documentHash: any
+  initialTokenQty: number
+}

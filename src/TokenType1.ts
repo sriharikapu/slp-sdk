@@ -14,7 +14,8 @@ import {
   IMintP2MSConfig,
   ISendP2MSConfig,
   IBurnAllP2MsConfig,
-  IBurnP2MsConfig
+  IBurnP2MsConfig,
+  ICreateP2PKConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -777,6 +778,55 @@ class TokenType1 {
     } catch (error) {
       return error
     }
+  }
+
+  async createP2PK(createP2PKConfig: ICreateP2PKConfig) {
+    const fundingWif: string = createP2PKConfig.fundingWif
+    let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(
+      this.BITBOX.ECPair.fromWIF(fundingWif)
+    )
+    let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+    const getRawTransactions = async (txids: any) => {
+      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+    }
+
+    const slpValidator: any = new slpjs.LocalValidator(
+      tmpBITBOX,
+      getRawTransactions
+    )
+
+    const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+    fundingAddress = addy.toSLPAddress(fundingAddress)
+
+    const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+      fundingAddress
+    )
+
+    const decimals: number = createP2PKConfig.decimals
+    const name: string = createP2PKConfig.name
+    const symbol: string = createP2PKConfig.symbol
+    const documentUri: string = createP2PKConfig.documentUri
+    const documentHash: any = createP2PKConfig.documentHash
+
+    let initialTokenQty: number = createP2PKConfig.initialTokenQty
+
+    initialTokenQty = new BigNumber(initialTokenQty).times(10 ** decimals)
+    balances.nonSlpUtxos.forEach((txo: any) => (txo.wif = fundingWif))
+    const genesisTxid = await bitboxNetwork.p2pkTokenGenesis(
+      name,
+      symbol,
+      initialTokenQty,
+      documentUri,
+      documentHash,
+      decimals,
+      createP2PKConfig.tokenReceiverWif,
+      createP2PKConfig.batonReceiverWif,
+      createP2PKConfig.bchChangeReceiverWif,
+      balances.nonSlpUtxos
+    )
+    console.log("GENESISTXID", genesisTxid)
+    return genesisTxid
   }
 }
 
