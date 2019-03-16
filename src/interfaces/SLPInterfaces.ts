@@ -144,3 +144,16 @@ export interface IBurnP2PKConfig {
   tokenReceiverWif: string
   bchChangeReceiverWif: string
 }
+
+export interface ICreateP2SHConfig {
+  fundingWif: string
+  tokenReceiverWif: string
+  batonReceiverWif: string
+  bchChangeReceiverWif: string
+  decimals: number
+  name: string
+  symbol: string
+  documentUri: string
+  documentHash: any
+  initialTokenQty: number
+}
