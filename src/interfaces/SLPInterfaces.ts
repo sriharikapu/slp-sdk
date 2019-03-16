@@ -83,7 +83,7 @@ export interface ISendP2MSConfig {
   requiredSignatures: number
 }
 
-export interface IBurnAllP2MsConfig {
+export interface IBurnAllP2MSConfig {
   fundingWif: string
   tokenId: string
   tokenReceiverWifs: string[]
@@ -120,4 +120,19 @@ export interface IMintP2PKConfig {
   bchChangeReceiverWif: string
   tokenId: string
   additionalTokenQty: number
+}
+
+export interface ISendP2PKConfig {
+  fundingWif: string
+  tokenReceiverWif: string
+  bchChangeReceiverWif: string
+  tokenId: string
+  sendAmount: number
+}
+
+export interface IBurnAllP2PKConfig {
+  fundingWif: string
+  tokenId: string
+  tokenReceiverWif: string
+  bchChangeReceiverWif: string
 }
