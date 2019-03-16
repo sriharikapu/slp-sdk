@@ -90,3 +90,12 @@ export interface IBurnAllP2MsConfig {
   bchChangeReceiverWifs: string[]
   requiredSignatures: number
 }
+
+export interface IBurnP2MsConfig {
+  fundingWif: string
+  tokenId: string
+  burnAmount: number
+  tokenReceiverWifs: string[]
+  bchChangeReceiverWifs: string[]
+  requiredSignatures: number
+}

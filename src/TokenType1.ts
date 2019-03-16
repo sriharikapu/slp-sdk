@@ -13,7 +13,8 @@ import {
   ICreateP2MSConfig,
   IMintP2MSConfig,
   ISendP2MSConfig,
-  IBurnAllP2MsConfig
+  IBurnAllP2MsConfig,
+  IBurnP2MsConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -555,7 +556,6 @@ class TokenType1 {
       const fundingWif: string = burnAllP2MSConfig.fundingWif
       let ecpair: any = this.BITBOX.ECPair.fromWIF(burnAllP2MSConfig.fundingWif)
       let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(ecpair)
-      console.log(fundingAddress)
       let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
 
       const getRawTransactions = async (txids: any) => {
@@ -661,6 +661,119 @@ class TokenType1 {
       let hex = tx.toHex()
       let txid = await tmpBITBOX.RawTransactions.sendRawTransaction(hex)
       return txid
+    } catch (error) {
+      return error
+    }
+  }
+
+  async burnP2MS(burnP2MSConfig: IBurnP2MsConfig) {
+    try {
+      const fundingWif: string = burnP2MSConfig.fundingWif
+      let ecpair: any = this.BITBOX.ECPair.fromWIF(burnP2MSConfig.fundingWif)
+      let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(ecpair)
+      let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+      const getRawTransactions = async (txids: any) => {
+        return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+      }
+
+      const slpValidator: any = new slpjs.LocalValidator(
+        tmpBITBOX,
+        getRawTransactions
+      )
+      const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+      const tokenInfo = await bitboxNetwork.getTokenInformation(
+        burnP2MSConfig.tokenId
+      )
+      let tokenDecimals = tokenInfo.decimals
+
+      let balances = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+        fundingAddress
+      )
+
+      let inputUtxos = [
+        {
+          txid:
+            "b9c4b39733040452d557ec94179272d0b468c2330d187b27c1480b8a36cc478f",
+          vout: 1,
+          amount: 0.00000546,
+          satoshis: 546
+        }
+      ]
+      inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+      inputUtxos.forEach((txo: any) => (txo.wif = burnP2MSConfig.fundingWif))
+
+      const burnTxid = await bitboxNetwork.p2msTokenBurn(
+        fundingWif,
+        burnP2MSConfig.tokenId,
+        burnP2MSConfig.burnAmount,
+        inputUtxos,
+        burnP2MSConfig.bchChangeReceiverWifs,
+        burnP2MSConfig.requiredSignatures
+      )
+
+      return burnTxid
+      // let network: string = this.returnNetwork(fundingAddress)
+      // let transactionBuilder: any
+      // if (network === "mainnet") {
+      //   transactionBuilder = new tmpBITBOX.TransactionBuilder("mainnet")
+      // } else {
+      //   transactionBuilder = new tmpBITBOX.TransactionBuilder("testnet")
+      // }
+      //
+      // let originalAmount: number = 0
+      //
+      // let mintPubkeys: any[] = []
+      // burnP2MSConfig.bchChangeReceiverWifs.forEach((wif: string) => {
+      //   const ecpair = this.BITBOX.ECPair.fromWIF(wif)
+      //   mintPubkeys.push(this.BITBOX.ECPair.toPublicKey(ecpair))
+      // })
+      //
+      // const mintBuf = this.BITBOX.Script.multisig.output.encode(
+      //   burnP2MSConfig.requiredSignatures,
+      //   mintPubkeys
+      // )
+      //
+      // transactionBuilder.addInput(
+      //   inputUtxos[0].txid,
+      //   inputUtxos[0].vout,
+      //   transactionBuilder.DEFAULT_SEQUENCE,
+      //   mintBuf
+      // )
+      // originalAmount += inputUtxos[0].satoshis
+      //
+      // transactionBuilder.addInput(inputUtxos[1].txid, inputUtxos[1].vout)
+      // originalAmount += inputUtxos[1].satoshis
+      //
+      // let byteCount = tmpBITBOX.BitcoinCash.getByteCount(
+      //   { P2PKH: inputUtxos.length },
+      //   { P2PKH: 3 }
+      // )
+      // let sendAmount = originalAmount - byteCount
+      //
+      // transactionBuilder.addOutput(
+      //   addy.toCashAddress(bchChangeReceiverAddresses[0]),
+      //   sendAmount
+      // )
+      //
+      // let keyPair = tmpBITBOX.ECPair.fromWIF(burnP2MSConfig.fundingWif)
+      //
+      // let redeemScript: void
+      // inputUtxos.forEach((utxo: any, index: number) => {
+      //   transactionBuilder.sign(
+      //     index,
+      //     keyPair,
+      //     redeemScript,
+      //     transactionBuilder.hashTypes.SIGHASH_ALL,
+      //     utxo.satoshis
+      //   )
+      // })
+      //
+      // let tx = transactionBuilder.build()
+      // let hex = tx.toHex()
+      // let txid = await tmpBITBOX.RawTransactions.sendRawTransaction(hex)
+      // return txid
     } catch (error) {
       return error
     }
