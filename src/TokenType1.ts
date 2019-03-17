@@ -22,7 +22,8 @@ import {
   IBurnP2PKConfig,
   ICreateP2SHConfig,
   IMintP2SHConfig,
-  ISendP2SHConfig
+  ISendP2SHConfig,
+  IBurnAllP2SHConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -1458,6 +1459,130 @@ class TokenType1 {
     //   mintP2MSConfig.requiredSignatures
     // )
     // return mintTxid
+  }
+
+  async burnAllP2SH(burnAllP2SHConfig: IBurnAllP2SHConfig) {
+    try {
+      const fundingWif: string = burnAllP2SHConfig.fundingWif
+      let ecpair: any = this.BITBOX.ECPair.fromWIF(burnAllP2SHConfig.fundingWif)
+      let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(ecpair)
+      let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+      const getRawTransactions = async (txids: any) => {
+        return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+      }
+
+      const slpValidator: any = new slpjs.LocalValidator(
+        tmpBITBOX,
+        getRawTransactions
+      )
+      const bitboxNetwork = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+      const tokenInfo = await bitboxNetwork.getTokenInformation(
+        burnAllP2SHConfig.tokenId
+      )
+      let tokenDecimals = tokenInfo.decimals
+
+      const script = this.BITBOX.Script.encode([
+        Buffer.from("DONA", "ascii"),
+        this.BITBOX.Script.opcodes.OP_CAT,
+        Buffer.from("CARDONA", "ascii"),
+        this.BITBOX.Script.opcodes.OP_EQUAL
+      ])
+
+      // hash160 script buffer
+      const p2sh_hash160 = this.BITBOX.Crypto.hash160(script)
+
+      // encode hash160 as P2SH output
+      const scriptPubKey = this.BITBOX.Script.scriptHash.output.encode(
+        p2sh_hash160
+      )
+
+      // get p2sh address from output script
+      const p2shAddress = this.BITBOX.Address.fromOutputScript(
+        scriptPubKey,
+        "testnet"
+      )
+
+      let balances = await bitboxNetwork.getAllSlpBalancesAndUtxos(p2shAddress)
+
+      let bchChangeReceiverECPair = this.BITBOX.ECPair.fromWIF(
+        burnAllP2SHConfig.bchChangeReceiverWif
+      )
+      let bchChangeReceiverCashAddr = this.BITBOX.ECPair.toCashAddress(
+        bchChangeReceiverECPair
+      )
+      let bchChangeReceiverAddress: string = addy.toSLPAddress(
+        bchChangeReceiverCashAddr
+      )
+
+      if (!addy.isSLPAddress(bchChangeReceiverAddress))
+        throw new Error("Change receiver address not in SLP format.")
+
+      let inputUtxos = [
+        {
+          txid:
+            "dacf425b697ad7c98576efcc31d13bab4e649598d532223e8e2332685b5f5ec2",
+          vout: 1,
+          amount: 0.00000546,
+          satoshis: 546
+        }
+      ]
+      inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+      inputUtxos.forEach((txo: any) => (txo.wif = burnAllP2SHConfig.fundingWif))
+      let network: string = this.returnNetwork(fundingAddress)
+      let transactionBuilder: any
+      if (network === "mainnet") {
+        transactionBuilder = new tmpBITBOX.TransactionBuilder("mainnet")
+      } else {
+        transactionBuilder = new tmpBITBOX.TransactionBuilder("testnet")
+      }
+
+      let originalAmount: number = 0
+
+      transactionBuilder.addInput(inputUtxos[0].txid, inputUtxos[0].vout)
+
+      originalAmount += inputUtxos[0].satoshis
+
+      transactionBuilder.addInput(inputUtxos[1].txid, inputUtxos[1].vout)
+      originalAmount += inputUtxos[1].satoshis
+
+      let byteCount = tmpBITBOX.BitcoinCash.getByteCount(
+        { P2PKH: inputUtxos.length },
+        { P2PKH: 3 }
+      )
+      let sendAmount = originalAmount - byteCount
+
+      transactionBuilder.addOutput(p2shAddress, sendAmount)
+
+      let script2 = [Buffer.from("CAR", "ascii")]
+
+      // concat scripts together
+      let children = script2.concat(script)
+
+      // encode scripts
+      let encodedScript2 = this.BITBOX.Script.encode(children)
+      let encodedScript3 = this.BITBOX.Script.encode(children)
+
+      // set input script
+      transactionBuilder.addInputScripts([
+        {
+          vout: 0,
+          script: encodedScript2
+        },
+        {
+          vout: 1,
+          script: encodedScript3
+        }
+      ])
+
+      let tx = transactionBuilder.build()
+      let hex = tx.toHex()
+      let txid = await tmpBITBOX.RawTransactions.sendRawTransaction(hex)
+      return txid
+    } catch (error) {
+      return error
+    }
   }
 }
 

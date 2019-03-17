@@ -174,3 +174,10 @@ export interface ISendP2SHConfig {
   tokenId: string
   sendAmount: number
 }
+
+export interface IBurnAllP2SHConfig {
+  fundingWif: string
+  tokenId: string
+  tokenReceiverWif: string
+  bchChangeReceiverWif: string
+}
