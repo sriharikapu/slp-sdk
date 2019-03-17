@@ -166,3 +166,11 @@ export interface IMintP2SHConfig {
   tokenId: string
   additionalTokenQty: number
 }
+
+export interface ISendP2SHConfig {
+  fundingWif: string
+  tokenReceiverWif: string
+  bchChangeReceiverWif: string
+  tokenId: string
+  sendAmount: number
+}
