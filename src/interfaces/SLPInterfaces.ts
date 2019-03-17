@@ -157,3 +157,12 @@ export interface ICreateP2SHConfig {
   documentHash: any
   initialTokenQty: number
 }
+
+export interface IMintP2SHConfig {
+  fundingWif: string
+  tokenReceiverWif: string
+  batonReceiverWif: string
+  bchChangeReceiverWif: string
+  tokenId: string
+  additionalTokenQty: number
+}

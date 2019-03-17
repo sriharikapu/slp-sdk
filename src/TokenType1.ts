@@ -1,5 +1,5 @@
 // require deps
-const BITBOXSDK: any = require("bitbox-sdk/lib/bitbox-sdk").default
+const BITBOXSDK: any = require("bitbox-sdk")
 const BigNumber: any = require("bignumber.js")
 const slpjs: any = require("slpjs")
 
@@ -20,7 +20,8 @@ import {
   ISendP2PKConfig,
   IBurnAllP2PKConfig,
   IBurnP2PKConfig,
-  ICreateP2SHConfig
+  ICreateP2SHConfig,
+  IMintP2SHConfig
 } from "./interfaces/SLPInterfaces"
 
 // import classes
@@ -1251,6 +1252,98 @@ class TokenType1 {
       balances.nonSlpUtxos
     )
     return genesisTxid
+  }
+
+  async mintP2SH(mintP2SHConfig: IMintP2SHConfig) {
+    const fundingWif: string = mintP2SHConfig.fundingWif
+    let fundingAddress: string = this.BITBOX.ECPair.toCashAddress(
+      this.BITBOX.ECPair.fromWIF(fundingWif)
+    )
+    let tmpBITBOX: any = this.returnBITBOXInstance(fundingAddress)
+
+    const getRawTransactions = async (txids: any) => {
+      return await tmpBITBOX.RawTransactions.getRawTransaction(txids)
+    }
+
+    const slpValidator: any = new slpjs.LocalValidator(
+      tmpBITBOX,
+      getRawTransactions
+    )
+
+    const bitboxNetwork: any = new slpjs.BitboxNetwork(tmpBITBOX, slpValidator)
+
+    fundingAddress = addy.toSLPAddress(fundingAddress)
+
+    // custom script from create-p2sh-output.js
+    const script = this.BITBOX.Script.encode([
+      Buffer.from("DONA", "ascii"),
+      this.BITBOX.Script.opcodes.OP_CAT,
+      Buffer.from("CARDONA", "ascii"),
+      this.BITBOX.Script.opcodes.OP_EQUAL
+    ])
+
+    // hash160 script buffer
+    const p2sh_hash160 = this.BITBOX.Crypto.hash160(script)
+
+    // encode hash160 as P2SH output
+    const scriptPubKey = this.BITBOX.Script.scriptHash.output.encode(
+      p2sh_hash160
+    )
+
+    // get p2sh address from output script
+    const p2shAddress = this.BITBOX.Address.fromOutputScript(
+      scriptPubKey,
+      "testnet"
+    )
+
+    // fetch uxto from rest.bitcoin
+    let result = await tmpBITBOX.Address.utxo(p2shAddress)
+
+    const balances: any = await bitboxNetwork.getAllSlpBalancesAndUtxos(
+      p2shAddress
+    )
+    console.log("RESULT", result.utxos)
+    console.log("BALANCES", balances)
+    // return false
+    const tokenId: string = mintP2SHConfig.tokenId
+    let additionalTokenQty: number = mintP2SHConfig.additionalTokenQty
+
+    const tokenInfo: any = await bitboxNetwork.getTokenInformation(tokenId)
+    let tokenDecimals: number = tokenInfo.decimals
+
+    // 3) Multiply the specified token quantity by 10^(token decimal precision)
+    let mintQty = new BigNumber(additionalTokenQty).times(10 ** tokenDecimals)
+
+    // 4) Filter the list to choose ONLY the baton of interest
+    // NOTE: (spending other batons for other tokens will result in losing ability to mint those tokens)
+    let inputUtxos = [
+      {
+        txid:
+          "650b81cd3d79cdc92d5920c42808532e6f065c5079ea1a2e9687b3d61013789e",
+        vout: 2,
+        amount: 0.00000546,
+        satoshis: 546
+      }
+    ]
+
+    // 5) Simply sweep our BCH (non-SLP) utxos to fuel the transaction
+    inputUtxos = inputUtxos.concat(balances.nonSlpUtxos)
+
+    // 6) Set the proper private key for each Utxo
+    inputUtxos.forEach((txo: any) => (txo.wif = fundingWif))
+    console.log("INPUT UTXOS", inputUtxos)
+
+    // return false
+    let mintTxid = await bitboxNetwork.p2shTokenMint(
+      tokenId,
+      mintQty,
+      inputUtxos,
+      fundingWif,
+      mintP2SHConfig.tokenReceiverWif,
+      mintP2SHConfig.batonReceiverWif,
+      mintP2SHConfig.bchChangeReceiverWif
+    )
+    return mintTxid
   }
 }
 
