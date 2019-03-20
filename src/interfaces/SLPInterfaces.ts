@@ -181,3 +181,11 @@ export interface IBurnAllP2SHConfig {
   tokenReceiverWif: string
   bchChangeReceiverWif: string
 }
+
+export interface IBurnP2SHConfig {
+  fundingWif: string
+  tokenId: string
+  burnAmount: number
+  tokenReceiverWif: string
+  bchChangeReceiverWif: string
+}
