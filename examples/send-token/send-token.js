@@ -4,11 +4,11 @@
 
 // CUSTOMIZE THESE VALUES FOR YOUR USE
 const TOKENQTY = 1
-const TOKENID = ""
-const SLPADDR = ""
+const TOKENID = "5a690a5d9a8eebe93f92a65051e5ec57b9b4244da6b4203228d53b564d810dd9"
+const SLPADDR = "qzna73m9hrj6y7fp57ueya726azwn7slhggzu8wrp8"
 
 // Set NETWORK to either testnet or mainnet
-const NETWORK = `testnet`
+const NETWORK = `mainnet`
 
 const SLPSDK = require("../../lib/SLP")
 
