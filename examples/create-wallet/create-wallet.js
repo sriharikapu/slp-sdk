@@ -20,8 +20,10 @@ const lang = "english"
 let outStr = ""
 const outObj = {}
 
+console.log("lang"+lang)
 // create 128 bit BIP39 mnemonic
 const mnemonic = SLP.Mnemonic.generate(128, SLP.Mnemonic.wordLists()[lang])
+console.log("memonic"+mnemonic)
 console.log("BIP44 $BCH Wallet")
 outStr += "BIP44 $BCH Wallet\n"
 console.log(`128 bit ${lang} BIP39 Mnemonic: `, mnemonic)
@@ -30,6 +32,7 @@ outObj.mnemonic = mnemonic
 
 // root seed buffer
 const rootSeed = SLP.Mnemonic.toSeed(mnemonic)
+console.log("RootSeed"+rootSeed)
 
 // master HDNode
 let masterHDNode
